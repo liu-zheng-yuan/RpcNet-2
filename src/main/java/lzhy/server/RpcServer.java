@@ -74,7 +74,7 @@ public class RpcServer {
                     ChannelPipeline pipe = ch.pipeline();
                     //先注册入站的Handler
                     //如果客户端60秒没有任何请求,就关闭客户端连接
-                    pipe.addLast(new ReadTimeoutHandler(240));
+                    pipe.addLast(new ReadTimeoutHandler(60));
                     //加解码器
                     pipe.addLast(new MessageDecoder());
                     //再注册出战的Handler

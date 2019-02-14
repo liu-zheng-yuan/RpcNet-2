@@ -53,7 +53,7 @@ public class RpcClient {
             protected void initChannel(SocketChannel channel) throws Exception {
                 ChannelPipeline pipe = channel.pipeline();
                 //入栈Handler
-                pipe.addLast(new ReadTimeoutHandler(240));
+                pipe.addLast(new ReadTimeoutHandler(60));
                 pipe.addLast(new MessageDecoder());
                 //出站Handler
                 pipe.addLast(new MessageEncoder());
