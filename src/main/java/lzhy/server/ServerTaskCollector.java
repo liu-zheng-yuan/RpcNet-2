@@ -64,13 +64,13 @@ public class ServerTaskCollector extends ChannelInboundHandlerAdapter {
     //新来一个连接时
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        LOG.info("新的连接已接入");
+        LOG.info("新的连接已接入:"+ctx.channel().toString());
     }
 
     //断开一个连接时
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        LOG.info("连接已断开");
+        LOG.info("连接已断开:"+ctx.channel().toString());
     }
 
     //收到客户端传来的请求时
