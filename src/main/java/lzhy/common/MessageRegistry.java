@@ -2,11 +2,12 @@ package lzhy.common;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 //消息类型注册中心
 public class MessageRegistry {
     //String对应的是Message的type字段，Class<?>对应的是消息中object的class对象
-    private Map<String, Class<?>> classMap = new HashMap<String, Class<?>>();
+    private Map<String, Class<?>> classMap = new ConcurrentHashMap<>();
 
     //1.客户端将希望收到的返回值的type和返回值的class储存进去
     //2.服务端将能提供的服务的type和输入参数的class储存进去
