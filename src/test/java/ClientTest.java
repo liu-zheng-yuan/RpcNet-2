@@ -3,8 +3,8 @@ import lzhy.client.RpcClient;
 
 public class ClientTest {
     public static void main(String[] args)  throws InterruptedException{
-        RpcClient client1 = new RpcClient("192.168.123.62", 9000);
-        RpcClient client2 = new RpcClient("192.168.123.62", 9001);
+        RpcClient client1 = new RpcClient("localhost", 9000);
+        RpcClient client2 = new RpcClient("localhost", 9001);
         client1.register("fib_res", long.class);
         client2.register("exp_res", ExpResponse.class);
         for (int i = 0; i <= 30; i++) {

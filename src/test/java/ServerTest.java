@@ -10,14 +10,14 @@ public class ServerTest {
     public static void main(String[] args) {
         RpcServer server1 = new RpcServer("localhost",9000, 10, 5);
         server1.registerService("fib", Integer.class, new FibRequestHandler());
-//        RpcServer server2 = new RpcServer("localhost",9001, 10, 5);
-//        server2.registerService("exp", ExpRequest.class, new ExpRequestHandler());
-//        new Thread(new Runnable() {
-//            @Override
-//            public void run() {
-//                server2.start();
-//            }
-//        }).start();
+        RpcServer server2 = new RpcServer("localhost",9001, 10, 5);
+        server2.registerService("exp", ExpRequest.class, new ExpRequestHandler());
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                server2.start();
+            }
+        }).start();
         server1.start();
     }
 
