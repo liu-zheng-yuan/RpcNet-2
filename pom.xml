@@ -74,5 +74,19 @@
             <artifactId>netty-codec</artifactId>
             <version>${netty.version}</version>
         </dependency>
+
+        <!--使用Jboss的marshalling类库进行序列化，它兼容JDK自己的序列化接口。需要自己实现工厂类-->
+        <dependency>
+            <groupId>org.jboss.marshalling</groupId>
+            <artifactId>jboss-marshalling-river</artifactId>
+            <version>1.4.10.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.marshalling</groupId>
+            <artifactId>jboss-marshalling-serial</artifactId>
+            <version>1.4.11.Final</version>
+        </dependency>
+
+
     </dependencies>
 </project>
