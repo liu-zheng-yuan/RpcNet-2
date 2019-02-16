@@ -95,6 +95,18 @@ public class RpcServer {
         }
     }
 
+    //注册要暴露的服务服务
+    public void registerService(Object serviceImpl) {
+        if (serviceImpl == null) {
+            LOG.error("注册服务失败,请确保三个参数不为空");
+            return;
+        }
+        //key是（第一个）接口的名字，而不是实现类的名字
+        String interfacesName = InterfacesNameUtil.toNames(serviceImpl.getClass().getInterfaces());
+        LOG.info("已注册接口：{}",interfacesName);
+        this.registry.register(interfacesName,serviceImpl);
+
+    }
     //关闭服务器
     public void stop() {
         // 先关闭服务端套件字
@@ -106,14 +118,5 @@ public class RpcServer {
         serverTaskCollector.closeGracefully();
     }
 
-    //注册要暴露的服务服务
-    public void registerService(Object serviceImpl) {
-        if (serviceImpl == null) {
-            LOG.error("注册服务失败,请确保三个参数不为空");
-            return;
-        }
-        //key是（第一个）接口的名字，而不是实现类的名字
-        this.registry.register(serviceImpl.getClass().getInterfaces()[0].getSimpleName(),serviceImpl);
-        LOG.info("已注册接口：");
-    }
+
 }

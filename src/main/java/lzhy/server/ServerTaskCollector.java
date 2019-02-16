@@ -87,12 +87,11 @@ public class ServerTaskCollector extends ChannelInboundHandlerAdapter {
     private void handleMessage(ChannelHandlerContext ctx, ClientOutputMessage msg) {
         try {
             //从注册中心找到接口名对应的实现类
-            Object impl = this.registry.get(msg.getInterfaceName());
+            Object impl = this.registry.get(msg.getInterfacesName());
             Method method = impl.getClass().getMethod(msg.getMethodName(), msg.getParameterTypes());
             Object result = method.invoke(impl, msg.getArguements());
             ServerOutputMessage out = new ServerOutputMessage(msg.getRequestId(), result);
             ctx.writeAndFlush(out);
-            //NoSuchMethodException | IllegalAccessException | InvocationTargetException | IllegalArgumentException
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | IllegalArgumentException e) {
             //如果找不到，就说明RPCServer没有提供这个服务，就实用默认Handler处理
             ServerOutputMessage out = new ServerOutputMessage(msg.getRequestId(), e);

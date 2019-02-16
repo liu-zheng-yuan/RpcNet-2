@@ -1,7 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
 
-public class FibServiceImpl implements FibService{
+public class DoubleServiceImpl implements FibService, HelloService {
     private List<Long> fibs = new ArrayList<>();
 
     {
@@ -17,10 +17,15 @@ public class FibServiceImpl implements FibService{
         return fibs.get(n);
     }
 
-//    @Override
-//    public String toString() {
-//        return "FibServiceImpl{" +
-//                "fibs=" + fibs +
-//                '}';
-//    }
+    @Override
+    public String toString() {
+        return "DoubleServiceImpl{" +
+                "fibs=" + fibs +
+                '}';
+    }
+
+    @Override
+    public String hello() {
+        return "testment";
+    }
 }

@@ -7,14 +7,14 @@ public class ClientOutputMessage implements Serializable {
     private static final long serialVersionUID = 2L;
 
     private String requestId;//请求的唯一Id
-    private String interfaceName;//请求的接口名 todo 有可能是实现了多个接口.interfaceName应该是多个接口的simpleName拼接而成 以后实现
+    private String interfacesName;//请求的接口名 todo 有可能是实现了多个接口.interfaceName应该是多个接口的simpleName拼接而成 以后实现
     private String methodName;//请求的方法名
     private Class<?>[] parameterTypes;//方法参数类型
     private Object[] arguements;//方法参数
 
     public ClientOutputMessage(String requestId, String interfaceName, String methodName, Class<?>[] parameterTypes, Object[] arguements) {
         this.requestId = requestId;
-        this.interfaceName = interfaceName;
+        this.interfacesName = interfaceName;
         this.methodName = methodName;
         this.parameterTypes = parameterTypes;
         this.arguements = arguements;
@@ -29,12 +29,12 @@ public class ClientOutputMessage implements Serializable {
         this.requestId = requestId;
     }
 
-    public String getInterfaceName() {
-        return interfaceName;
+    public String getInterfacesName() {
+        return interfacesName;
     }
 
     public void setInterfaceName(String interfaceName) {
-        this.interfaceName = interfaceName;
+        this.interfacesName = interfaceName;
     }
 
     public String getMethodName() {
@@ -65,7 +65,7 @@ public class ClientOutputMessage implements Serializable {
     public String toString() {
         return "ClientOutputMessage{" +
                 "requestId='" + requestId + '\'' +
-                ", interfaceName='" + interfaceName + '\'' +
+                ", interfaceName='" + interfacesName + '\'' +
                 ", methodName='" + methodName + '\'' +
                 ", parameterTypes=" + Arrays.toString(parameterTypes) +
                 ", arguements=" + Arrays.toString(arguements) +

@@ -31,8 +31,8 @@ public class RpcClient {
     public RpcClient(String serverIp, int serverPort) {
         this.serverIp = serverIp;
         this.serverPort = serverPort;
-
         this.init();
+        LOG.info("RPC客户端生成");
 
     }
 
@@ -64,6 +64,7 @@ public class RpcClient {
     //连接到远程服务器
     public void connect() {
         bootstrap.connect(serverIp, serverPort).syncUninterruptibly();
+        LOG.info("成功连接 @ {}:{}",serverIp,serverPort);
     }
 
     //重连
@@ -116,23 +117,35 @@ public class RpcClient {
 //        }
 //    }
 
-    //产生代理对象，实际调用的是taskCollector的refer方法
-    public <T> T refer(final Class<T> interfaceClass) {
+    //可以传入多个接口的Class对象，返回实现了这些接口的代理对象。但必须强转成clazz对应的T类型。todo 好像没啥用 以后完善
+    //clazz 代表在多个接口的情况下，想要强转成的接口类型，利用泛型T表示
+    //interfaceClazzs 代表希望获得的代理类实现的接口（必须包括clazz）
+    public <T> T refer(Class<T> clazz,Class[] interfaceClazzs) {
         try {
-            if (interfaceClass == null)
-                throw new IllegalArgumentException("interface class 为 null");
-            if (!interfaceClass.isInterface())
-                throw new IllegalArgumentException(interfaceClass.getName() + " 应该是 interface class!");
+            if (interfaceClazzs == null || clazz==null)
+                throw new IllegalArgumentException("interface classes 为 null");
+            for (Class<?> c : interfaceClazzs) {
+                if (!c.isInterface())
+                    throw new IllegalArgumentException(c.getName() + " 应该是 interface class!");
+            }
+            if (!clazz.isInterface()) {
+                throw new IllegalArgumentException(clazz.getName() + " 应该是 interface class!");
+            }
             if (!started) {
                 connect();
                 started = true;
             }
-            return taskCollector.refer(interfaceClass);
+            return taskCollector.refer(clazz,interfaceClazzs);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
 
+    }
+
+    //重载。传入一个接口的Class。返回的代理类只实现了这一个接口，注意：如果服务端的实现类实现了不止这一个接口，不能通用。
+    public <T> T refer(Class<T> clazz) {
+        return this.refer(clazz, new Class[]{clazz});
     }
     //关闭连接 主要是EventLoopGroup
     public void close() {

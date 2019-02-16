@@ -4,32 +4,22 @@ import lzhy.client.RpcClient;
 public class ClientTest {
     public static void main(String[] args)  {
         RpcClient client = new RpcClient("localhost", 9000);
-
-        TestService testService = null;
-        try {
-            testService = client.refer(TestService.class);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        //System.out.println(fibService);
+        //1.返回实现了多个接口的代理类的情况
+        Class[] classes = {FibService.class, HelloService.class};
+        FibService service1 = client.refer(FibService.class,classes);
         for (int i = 0; i <= 30; i++) {
             try {
-                System.out.printf("fib(%d) = %s\n", i, testService.test());
+                System.out.printf("fib(%d) = %s\n", i, service1.fib(i));
                 Thread.sleep(100);
             } catch (Exception e) {
                 i--; // retry
             }
         }
-//        Thread.sleep(3000);
-//        for (int i = 0; i <= 30; i++) {
-//            try {
-//                ExpResponse res = client2.send("exp",new ExpRequest(2,i));
-//                Thread.sleep(100);
-//                System.out.printf("exp2(%d) = %d cost=%dns\n", i, res.getValue(), res.getCostInNanos());
-//            } catch (Exception e) {
-//                i--; // retry
-//            }
-//        }
+        //返回只实现了一个接口的代理类
+        HelloService service2 = client.refer(HelloService.class);
+        System.out.println(service2.hello());
+
+
         client.close();
 
     }

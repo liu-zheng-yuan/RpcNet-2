@@ -108,17 +108,22 @@ public class ClientTaskCollector extends ChannelInboundHandlerAdapter {
 
 
     //生成代理类.在代理类的invoktionHandler中调用send发送ClientOutputMessage类型的请求
+    //clazz 代表在多个接口的情况下，想要强转成的接口类型，利用泛型T表示
+    //interfaceClazzs 代表希望获得的代理类实现的接口（必须包括clazz）
     @SuppressWarnings("unchecked")
-    public <T> T refer(final Class<T> interfaceClass) throws Exception {
-        //todo 有可能是实现了多个接口.传入的应该是接口数组 以后实现
-        T proxyInstance = (T)Proxy.newProxyInstance(interfaceClass.getClassLoader(), new Class<?>[]{interfaceClass}, new InvocationHandler() {
+    public <T> T refer(final Class<T> clazz,final Class[] interfaceClazzs) throws Exception {
+        //todo 有可能是实现了多个接口.传入的应该是接口的class数组
+
+
+        //这里默认把第一个接口的类加载器传进去
+        T proxyInstance = (T)Proxy.newProxyInstance(interfaceClazzs[0].getClassLoader(), interfaceClazzs, new InvocationHandler() {
             @Override
             public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                 //通过ctx发送调用方法名、方法参数类型、参数
                 String methodName = method.getName();
                 Class<?>[] parameterTypes = method.getParameterTypes();
-                //todo 有可能是实现了多个接口.interfaceName应该是多个接口的simpleName拼接而成 以后实现
-                ClientOutputMessage output = new ClientOutputMessage(UUID.randomUUID().toString(),interfaceClass.getSimpleName(),methodName, parameterTypes, args);
+                //有可能是实现了多个接口.interfacesName应该是多个接口的simpleName拼接而成
+                ClientOutputMessage output = new ClientOutputMessage(UUID.randomUUID().toString(),InterfacesNameUtil.toNames(interfaceClazzs),methodName, parameterTypes, args);
                 //内部类引用外部类的实例使用以下语法
                 RpcFuture<Object> future = ClientTaskCollector.this.send(output);
                 //同步地获得结果，考虑如果返回的是异常的情况
@@ -134,6 +139,8 @@ public class ClientTaskCollector extends ChannelInboundHandlerAdapter {
                 return result;
             }
         });
+
+        LOG.info("已产生接口:{} 的代理对象", InterfacesNameUtil.toNames(interfaceClazzs));
         return proxyInstance;
 
     }
