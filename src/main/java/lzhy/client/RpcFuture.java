@@ -21,6 +21,7 @@ public class RpcFuture<T> implements Future<T> {
 
     //成功得到返回值
     public void success(T result) {
+        //todo 考虑泛型的情况
         this.result = result;
         latch.countDown();
     }
@@ -40,11 +41,16 @@ public class RpcFuture<T> implements Future<T> {
 
 
     @Override
-    public T get() throws InterruptedException, ExecutionException {
+    public T get() throws InterruptedException, ExecutionException,RpcException {
         //这句的意思是直到Rpcfuture对象被调用过success或者fail方法后才能从get返回
-        latch.await();
+        latch.await(10, TimeUnit.SECONDS);
+        //如果等待了10秒之后，result和error都没有接收到对象，说明出bug了
+        if (error == null && result == null) {
+            throw new RpcException("超时获取不到结果和error");
+        }
+
         if (error != null) {
-            throw new ExecutionException(error);
+            throw new RpcException(error);
         }
         return result;
 

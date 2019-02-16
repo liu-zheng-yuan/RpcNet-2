@@ -6,10 +6,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.ReadTimeoutHandler;
-import lzhy.common.MessageDecoder;
-import lzhy.common.MessageEncoder;
-import lzhy.common.MessageRegistry;
-import lzhy.common.OutputMessage;
+import lzhy.common.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +24,6 @@ public class RpcClient {
     private Bootstrap bootstrap;
     private EventLoopGroup group;//客户端无bossGroup
     private ClientTaskCollector taskCollector;
-    private MessageRegistry registry = new MessageRegistry();
 
     private volatile boolean started;
     private volatile boolean stopped;
@@ -47,16 +43,17 @@ public class RpcClient {
         //下面配置
         bootstrap.group(group);
         bootstrap.channel(NioSocketChannel.class);
-        this.taskCollector = new ClientTaskCollector(this.registry, this);
+        this.taskCollector = new ClientTaskCollector(this);
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel channel) throws Exception {
                 ChannelPipeline pipe = channel.pipeline();
                 //入栈Handler
                 pipe.addLast(new ReadTimeoutHandler(60));
-                pipe.addLast(new MessageDecoder());
+                pipe.addLast(MarshallingCodeCFactory.buildDecoder());
                 //出站Handler
-                pipe.addLast(new MessageEncoder());
+                //todo 好像netty自己支持MarshallEncoder 不用自己写工厂方法
+                pipe.addLast(MarshallingCodeCFactory.buildEncoder());
                 pipe.addLast(taskCollector);
 
             }
@@ -94,41 +91,55 @@ public class RpcClient {
         });
     }
 
-    //注册希望接受到的响应类型
-    public RpcClient register(String type, Class<?> resultClass) {
-        registry.register(type, resultClass);
-        LOG.info("已注册服务返回名{}和返回值类型{}",type,resultClass.getName());
-        return this;
-    }
 
-    //发送RPC请求,异步地
-    public <T> RpcFuture<T> sendAsync(String type, Object object) {
-        if (!started) {
-            connect();
-            started = true;
-        }
-        String requestId = UUID.randomUUID().toString();
-        OutputMessage output = new OutputMessage(requestId, type, object);
-        RpcFuture<T> future = taskCollector.send(output);
-        return future;
-    }
 
-    //同步地发送RPC请求,一定要等到收到结果,才能返回
-    public <T> T send(String type, Object object) {
-        //返回的直接是结果
-        RpcFuture<T> future = sendAsync(type, object);
+//    //发送RPC请求,异步地
+//    public <T> RpcFuture<T> sendAsync(String type, Object object) {
+//        if (!started) {
+//            connect();
+//            started = true;
+//        }
+//        String requestId = UUID.randomUUID().toString();
+//        OutputMessage output = new OutputMessage(requestId, type, object);
+//        RpcFuture<T> future = taskCollector.send(output);
+//        return future;
+//    }
+//
+//    //同步地发送RPC请求,一定要等到收到结果,才能返回
+//    public <T> T send(String type, Object object) {
+//        //返回的直接是结果
+//        RpcFuture<T> future = sendAsync(type, object);
+//        try {
+//            return future.get();
+//        } catch (InterruptedException | ExecutionException e) {
+//            throw new RpcException(e);
+//        }
+//    }
+
+    //产生代理对象，实际调用的是taskCollector的refer方法
+    public <T> T refer(final Class<T> interfaceClass) {
         try {
-            return future.get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RpcException(e);
+            if (interfaceClass == null)
+                throw new IllegalArgumentException("interface class 为 null");
+            if (!interfaceClass.isInterface())
+                throw new IllegalArgumentException(interfaceClass.getName() + " 应该是 interface class!");
+            if (!started) {
+                connect();
+                started = true;
+            }
+            return taskCollector.refer(interfaceClass);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
-    }
 
+    }
     //关闭连接 主要是EventLoopGroup
     public void close() {
         stopped = true;
         taskCollector.close();
         group.shutdownGracefully().syncUninterruptibly();
+
     }
 
 }

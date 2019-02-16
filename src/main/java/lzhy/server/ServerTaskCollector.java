@@ -3,13 +3,13 @@ package lzhy.server;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import lzhy.common.AbstractMessageHandler;
-import lzhy.common.InputMessage;
-import lzhy.common.MessageRegistry;
+import lzhy.common.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.rmi.runtime.Log;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -20,14 +20,12 @@ public class ServerTaskCollector extends ChannelInboundHandlerAdapter {
     private final static Logger LOG = LoggerFactory.getLogger(ServerTaskCollector.class);
     //线程池
     private ThreadPoolExecutor executor;
-    //Handler注册中心
-    private MessageHandlerRegistry handlerRegistry;
-    //消息类型注册中心
-    private MessageRegistry messageRegistry;
+    //服务注册中心
+    private ServiceRegistry registry;
 
     //构造函数
-    public ServerTaskCollector(MessageHandlerRegistry handlerRegistry, MessageRegistry messageRegistry, int workThreads) {
-        System.out.println("=========2=============" + "ServerTaskCollector.构造");
+    public ServerTaskCollector(ServiceRegistry registry, int workThreads) {
+        LOG.info("ServerTaskCollector 构造");
         //业务队列最大1000，避免堆积
         //如果子线程处理不过来,io线程也会加入业务逻辑(callerRunsPolicy)Todo ???
         BlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(1000);
@@ -45,8 +43,7 @@ public class ServerTaskCollector extends ChannelInboundHandlerAdapter {
         };
         //闲置时间超过30秒就自动销毁
         this.executor = new ThreadPoolExecutor(1, workThreads, 30, TimeUnit.SECONDS, queue, factory, new ThreadPoolExecutor.CallerRunsPolicy());
-        this.handlerRegistry = handlerRegistry;
-        this.messageRegistry = messageRegistry;
+        this.registry = registry;
     }
 
     //关闭这个类中所有连接和线程池
@@ -76,34 +73,30 @@ public class ServerTaskCollector extends ChannelInboundHandlerAdapter {
     //收到客户端传来的请求时
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (msg instanceof InputMessage) {
+        if (msg instanceof ClientOutputMessage) {
             //收到客户端请求之后，交给线程池里线程执行
             this.executor.execute(()->{
-                handleMessage(ctx,(InputMessage) msg);
+                handleMessage(ctx,(ClientOutputMessage) msg);
             });
         } else {
-            System.out.println("收到不能解析的客户端请求" + msg);
+           LOG.error("收到不能解析的客户端请求" + msg);
         }
     }
+
     //将msg交给线程池处理的具体逻辑
-    private void handleMessage(ChannelHandlerContext ctx, InputMessage msg) {
-        //从注册中心找到type对应的输入类型class
-        Class<?> clazz = this.messageRegistry.get(msg.getType());
-        //如果找不到，就说明RPCServer没有提供这个服务，就实用默认Handler处理
-        if (clazz == null) {
-            handlerRegistry.defaultMessageHandler.handle(ctx, msg.getRequestId(), msg);
-            return;
-        }
-        //根据找到的输入值的类型，把msg中的json字符串形式的object对象转换成真正的Object类型的对象
-        Object o = msg.getObject(clazz);
-        //Todo 比较难看 等待解决 强转要检查
-        @SuppressWarnings("unchecked")
-        //调用合适的Handler的handle方法来解决输入问题
-        AbstractMessageHandler<Object> handler = (AbstractMessageHandler<Object>) handlerRegistry.get(msg.getType());
-        if (handler != null) {
-            handler.handle(ctx,msg.getRequestId(),o);
-        } else {
-            handlerRegistry.defaultMessageHandler.handle(ctx, msg.getRequestId(), msg);
+    private void handleMessage(ChannelHandlerContext ctx, ClientOutputMessage msg) {
+        try {
+            //从注册中心找到接口名对应的实现类
+            Object impl = this.registry.get(msg.getInterfaceName());
+            Method method = impl.getClass().getMethod(msg.getMethodName(), msg.getParameterTypes());
+            Object result = method.invoke(impl, msg.getArguements());
+            ServerOutputMessage out = new ServerOutputMessage(msg.getRequestId(), result);
+            ctx.writeAndFlush(out);
+            //NoSuchMethodException | IllegalAccessException | InvocationTargetException | IllegalArgumentException
+        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | IllegalArgumentException e) {
+            //如果找不到，就说明RPCServer没有提供这个服务，就实用默认Handler处理
+            ServerOutputMessage out = new ServerOutputMessage(msg.getRequestId(), e);
+            ctx.writeAndFlush(out);
         }
 
     }

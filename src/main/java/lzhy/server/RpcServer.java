@@ -6,10 +6,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.timeout.ReadTimeoutHandler;
-import lzhy.common.AbstractMessageHandler;
-import lzhy.common.MessageDecoder;
-import lzhy.common.MessageEncoder;
-import lzhy.common.MessageRegistry;
+import lzhy.common.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +22,7 @@ public class RpcServer {
     private int port;//提供服务的端口号，一个Server实例只提供一个端口上的服务
     private int workThreads;//处理业务的线程池中的线程数
     private int ioThreads;//EventLoopGroup中的负责处理IO的线程数（即Selector线程数）
-    private MessageRegistry messageRegistry = new MessageRegistry(); //提供的服务消息注册中心
-    private MessageHandlerRegistry handlerRegistry = new MessageHandlerRegistry();//handler注册中心
+    private ServiceRegistry registry = new ServiceRegistry();//提供的服务注册中心
 
     //保存Netty中的一些对象的引用，方便以后关闭
     private ServerBootstrap bootstrap;
@@ -55,13 +51,13 @@ public class RpcServer {
 
     //启动RPC服务
     public void start() {
-        System.out.println("=========1=============" + "RPCServer.start");
+        LOG.info("RPCServer start");
         //bossGroup：Acceptor线程池。负责监听端口的Socket连接，如果只有一个服务端端口需要监听，线程组线程数应该为1。
         bossGroup = new NioEventLoopGroup(1);
         //ioGroup：真正负责I/O读写操作的线程组。
         ioGroup = new NioEventLoopGroup(this.ioThreads);
         //TaskCollector具体执行业务逻辑的线程池也是一个Handler
-        serverTaskCollector = new ServerTaskCollector(handlerRegistry, messageRegistry, workThreads);
+        serverTaskCollector = new ServerTaskCollector(registry, workThreads);
 
         try {
             bootstrap = new ServerBootstrap();
@@ -76,9 +72,9 @@ public class RpcServer {
                     //如果客户端60秒没有任何请求,就关闭客户端连接
                     pipe.addLast(new ReadTimeoutHandler(60));
                     //加解码器
-                    pipe.addLast(new MessageDecoder());
+                    pipe.addLast(MarshallingCodeCFactory.buildDecoder());
                     //再注册出战的Handler
-                    pipe.addLast(new MessageEncoder());
+                    pipe.addLast(MarshallingCodeCFactory.buildEncoder());
                     //业务处理Handler
                     pipe.addLast(serverTaskCollector);
                 }
@@ -111,13 +107,13 @@ public class RpcServer {
     }
 
     //注册要暴露的服务服务
-    public void registerService(String type, Class<?> inputClass, AbstractMessageHandler<?> handler) {
-        if (type == null || inputClass == null || handler == null) {
+    public void registerService(Object serviceImpl) {
+        if (serviceImpl == null) {
             LOG.error("注册服务失败,请确保三个参数不为空");
             return;
         }
-        this.messageRegistry.register(type, inputClass);
-        this.handlerRegistry.register(type, handler);
-        LOG.info("已注册服务名{}和输入值类型{}",type,inputClass.getName());
+        //key是（第一个）接口的名字，而不是实现类的名字
+        this.registry.register(serviceImpl.getClass().getInterfaces()[0].getSimpleName(),serviceImpl);
+        LOG.info("已注册接口：");
     }
 }

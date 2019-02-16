@@ -18,7 +18,7 @@ public final class MarshallingCodeCFactory {
         configuration.setVersion(5);
         //根据Factory和configuration创建provider
         UnmarshallerProvider provider = new DefaultUnmarshallerProvider(marshallerFactory, configuration);
-        //构建Netty的MarshallingDecoder对象，两个参数为provider和单个消息序列化之后的最大长度
+        //构建Netty的MarshallingDecoder对象，两个参数为provider和单个消息序列化之后的最大长度 todo 单个消息序列化最大长度限制
         MarshallingDecoder decoder = new MarshallingDecoder(provider, 1024 * 1024 * 10);
         return decoder;
     }

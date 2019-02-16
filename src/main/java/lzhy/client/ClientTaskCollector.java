@@ -3,13 +3,16 @@ package lzhy.client;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import lzhy.common.InputMessage;
-import lzhy.common.MessageRegistry;
-import lzhy.common.OutputMessage;
+import lzhy.common.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 //客户端的任务搜集器(也是Netty中的handler)
@@ -21,7 +24,6 @@ public class ClientTaskCollector extends ChannelInboundHandlerAdapter {
 
     private final static Logger LOG = LoggerFactory.getLogger(ClientTaskCollector.class);
 
-    private MessageRegistry messageRegistry;
     //存发出消息OutputMessage的requestID和异步结果Rpcture对象的引用
     private ConcurrentHashMap<String, RpcFuture<?>> pendingTasks = new ConcurrentHashMap<>();
     //为了实现重连,客户端对象(它与collector互相引用)
@@ -31,8 +33,7 @@ public class ClientTaskCollector extends ChannelInboundHandlerAdapter {
     //连接关闭的错误类型
     private Throwable ConnectionClosed = new Exception("rpc 连接已被关闭,任务失败");
 
-    public ClientTaskCollector(MessageRegistry messageRegistry, RpcClient rpcClient) {
-        this.messageRegistry = messageRegistry;
+    public ClientTaskCollector(RpcClient rpcClient) {
         this.client = rpcClient;
     }
 
@@ -57,37 +58,39 @@ public class ClientTaskCollector extends ChannelInboundHandlerAdapter {
         }, 1, TimeUnit.SECONDS);
     }
 
-    //客户端收到传来的结果,是被编码成二进制的InputMessage类型
+    //客户端收到传来的结果,是ServerOutputMessage类型。从中读出返回结果
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (!(msg instanceof InputMessage)) {
-            LOG.error("客户端收到的返回信息不能被正确地解析成InputMessage类型");
+        if (!(msg instanceof ServerOutputMessage)) {
+            LOG.error("客户端收到的返回信息不能被正确地解析成ServerOutputMessage类型");
             return;
         }
-        InputMessage input = (InputMessage) msg;
-        //input里就是rpc调用的结果
-        Class<?> clazz = messageRegistry.get(input.getType());
-        if (clazz == null) {
-            LOG.error("找不到合适的Class类型与返回值匹配");
-            return;
-        }
-        Object o = input.getObject(clazz);
+        ServerOutputMessage input = (ServerOutputMessage) msg;
+        //todo 没有考虑异步的情况
+        Object o = input.getResult();
         @SuppressWarnings("unchecked")
         RpcFuture<Object> future = (RpcFuture<Object>) pendingTasks.remove(input.getRequestId());
         if (future == null) {
-            LOG.error("任务" + input.getType() + "没有对应的future对象");
+            LOG.error("任务" + input.getRequestId() + "没有对应的future对象");
             return;
         }
-        future.success(o);
+        //判断如果返回的是异常的情况
+        if (o instanceof Throwable) {
+            future.fail((Throwable) o);
+        } else {
+            future.success(o);
+        }
 
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         LOG.error("客户端连接出现异常");
+        cause.printStackTrace();
+        ctx.close();
     }
 
-    public <T> RpcFuture<T> send(OutputMessage output) {
+    public <T> RpcFuture<T> send(ClientOutputMessage output) {
         RpcFuture<T> future = new RpcFuture<T>();
         if (ctx != null) {
             ctx.channel().eventLoop().execute(() -> {
@@ -103,11 +106,45 @@ public class ClientTaskCollector extends ChannelInboundHandlerAdapter {
         return future;
     }
 
+
+    //生成代理类.在代理类的invoktionHandler中调用send发送ClientOutputMessage类型的请求
+    @SuppressWarnings("unchecked")
+    public <T> T refer(final Class<T> interfaceClass) throws Exception {
+        //todo 有可能是实现了多个接口.传入的应该是接口数组 以后实现
+        T proxyInstance = (T)Proxy.newProxyInstance(interfaceClass.getClassLoader(), new Class<?>[]{interfaceClass}, new InvocationHandler() {
+            @Override
+            public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                //通过ctx发送调用方法名、方法参数类型、参数
+                String methodName = method.getName();
+                Class<?>[] parameterTypes = method.getParameterTypes();
+                //todo 有可能是实现了多个接口.interfaceName应该是多个接口的simpleName拼接而成 以后实现
+                ClientOutputMessage output = new ClientOutputMessage(UUID.randomUUID().toString(),interfaceClass.getSimpleName(),methodName, parameterTypes, args);
+                //内部类引用外部类的实例使用以下语法
+                RpcFuture<Object> future = ClientTaskCollector.this.send(output);
+                //同步地获得结果，考虑如果返回的是异常的情况
+                //todo 没考虑异步情况
+                Object result = null;
+                try {
+                    //如果返回的是结果，则正常获得；如果返回的是Throwable对象，则捕获
+                    result = future.get();
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return result;
+            }
+        });
+        return proxyInstance;
+
+    }
     public void close() {
         if (ctx != null) {
             ctx.close();
         }
     }
+
+
+
 
 
 }
